@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 4: Acting as whom · Harden Your Agent</title>
+<meta name="description" content="Acting as whom. Part of Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://georgehanu.github.io/harden-your-agent/04-acting-as-whom.html">
+<meta property="og:title" content="Lesson 4: Acting as whom · Harden Your Agent">
+<meta property="og:description" content="Acting as whom. Part of Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test.">
+<meta property="og:image" content="https://georgehanu.github.io/og/guides/harden-your-agent.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test. Coding with AI, by George Hanu.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:creator" content="@georgehanu">
+<meta name="twitter:title" content="Lesson 4: Acting as whom · Harden Your Agent">
+<meta name="twitter:description" content="Acting as whom. Part of Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test.">
+<meta name="twitter:image" content="https://georgehanu.github.io/og/guides/harden-your-agent.png">
+<meta name="twitter:image:alt" content="Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test. Coding with AI, by George Hanu.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128737;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span class="loop">&#128737;</span> Harden Your Agent</a>
+  <nav class="top-links">
+    <a href="https://github.com/georgehanu/harden-your-agent">GitHub</a>
+    <a class="follow" href="https://x.com/georgehanu">Follow @georgehanu</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side"><div class="side-title">Lessons</div><a href="01-where-untrusted-text-gets-in.html"><span>1</span>Where untrusted text gets in</a>
+<a href="02-keep-the-agent-on-task.html"><span>2</span>Keep the agent on task</a>
+<a href="03-the-screen-and-the-fetch-tool.html"><span>3</span>What the screen and the fetch tool can give away</a>
+<a href="04-acting-as-whom.html" aria-current="page"><span>4</span>Acting as whom</a>
+<a href="05-tools-that-must-not-run-twice.html"><span>5</span>Tools that must not run twice</a>
+<a href="06-memory-you-can-trust.html"><span>6</span>Memory you can trust</a>
+<a href="07-the-hardening-test-suite.html"><span>+</span>The hardening test suite</a></aside>
+  <main class="lesson"><div class="meta"><span>Run</span><code>npm run lesson4</code><a href="https://github.com/georgehanu/harden-your-agent/blob/main/src/defences/identity.ts">View the code →</a></div><h1>Lesson 4 · Acting as whom</h1>
+<p>Every tool so far has quietly had the keys to everything. <code>find_booking</code> reads any booking. <code>issue_refund</code> refunds any amount. That&#39;s fine while the only person talking to the agent is trusted staff. The moment a guest can chat to it, the question is no longer &quot;what can this tool do?&quot; but &quot;<strong>who is it doing it for?</strong>&quot;</p>
+<h2>The chat is not identity</h2>
+<p>It&#39;s tempting to let the conversation carry the answer: the guest says who they are, the agent believes them. That&#39;s the same mistake as trusting a hidden <code>&lt;input name=&quot;role&quot; value=&quot;admin&quot;&gt;</code> because the form sent it. The chat is user input. Identity has to come from somewhere the user can&#39;t edit.</p>
+<p>For tiny-stay that&#39;s a signed session cookie (<code>src/session.ts</code>). The &quot;Sign in as&quot; switch sets it; it&#39;s an HMAC of who you are, so the browser carries it but can&#39;t forge it:</p>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">export</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">verifySession</span>(<span class="hljs-params">token</span>) {
+  <span class="hljs-keyword">const</span> [payload, signature] = token.<span class="hljs-title function_">split</span>(<span class="hljs-string">&quot;.&quot;</span>);
+  <span class="hljs-keyword">if</span> (!<span class="hljs-title function_">timingSafeEqual</span>(<span class="hljs-title function_">sign</span>(payload), signature)) <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span>; <span class="hljs-comment">// one edited character and it&#x27;s rejected</span>
+  <span class="hljs-keyword">return</span> <span class="hljs-title function_">userFrom</span>(payload);
+}
+</code></pre><p>Tools act as that person. Never as whoever the chat claims to be.</p>
+<h2>The demo: a guest reaching for someone else&#39;s booking</h2>
+<p>Signed in as the guest Ana, the chat asks about Tom&#39;s booking and tries to move it:</p>
+<pre><code class="hljs language-bash">npm run lesson4
+</code></pre><pre><code class="hljs language-text">── Identity OFF ──
+tool → find_booking(BK-1042)   ← { guest: &quot;Tom Brennan&quot;, room: &quot;Harbour&quot;, … }
+tool → change_booking(BK-1042, Lighthouse Suite)   ← Changed.
+</code></pre><p>A guest just read, and changed, another guest&#39;s booking. With it on:</p>
+<pre><code class="hljs language-text">── Identity ON ──
+tool ✗ BK-1042 belongs to another guest. Guests can only see their own bookings.   [identity]
+model  I can&#x27;t show you BK-1042. Happy to help with your own booking instead.
+</code></pre><p>The refusal happens <em>inside the tool</em>, before it reads a thing. The model only ever learns it was told no.</p>
+<h2>Role rules live in code, next to the data</h2>
+<pre><code class="hljs language-ts"><span class="hljs-comment">// src/defences/identity.ts</span>
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">canSeeBooking</span>(<span class="hljs-params">user, booking</span>) {
+  <span class="hljs-keyword">if</span> (<span class="hljs-title function_">isStaff</span>(user) || booking.<span class="hljs-property">guest_email</span> === user.<span class="hljs-property">email</span>) <span class="hljs-keyword">return</span> yes;
+  <span class="hljs-keyword">return</span> <span class="hljs-title function_">no</span>(<span class="hljs-string">`<span class="hljs-subst">${booking.ref}</span> belongs to another guest.`</span>);
+}
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">canRefund</span>(<span class="hljs-params">user, amount</span>) {
+  <span class="hljs-keyword">if</span> (user.<span class="hljs-property">role</span> === <span class="hljs-string">&quot;owner&quot;</span>) <span class="hljs-keyword">return</span> yes;
+  <span class="hljs-keyword">if</span> (user.<span class="hljs-property">role</span> === <span class="hljs-string">&quot;receptionist&quot;</span>) <span class="hljs-keyword">return</span> amount &lt;= <span class="hljs-number">100</span> ? yes : <span class="hljs-title function_">no</span>(<span class="hljs-string">&quot;Over £100 needs the owner.&quot;</span>);
+  <span class="hljs-keyword">return</span> <span class="hljs-title function_">no</span>(<span class="hljs-string">&quot;Guests can&#x27;t issue refunds.&quot;</span>);
+}
+</code></pre><table>
+<thead>
+<tr>
+<th></th>
+<th>Owner</th>
+<th>Receptionist</th>
+<th>Guest</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>See or list bookings</td>
+<td>all</td>
+<td>all</td>
+<td>her own</td>
+</tr>
+<tr>
+<td>Change a booking</td>
+<td>yes</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Refund</td>
+<td>any amount</td>
+<td>up to £100</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Inbox and notes</td>
+<td>yes</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Export the ledger</td>
+<td>yes</td>
+<td>no</td>
+<td>no</td>
+</tr>
+</tbody></table>
+<p>Two things worth stealing from this. <strong>The check is in the tool, not the prompt.</strong> A sentence in the system prompt saying &quot;guests may only see their own bookings&quot; is the disabled button; the check in <code>find_booking</code> is the server saying no. Second, <strong>the rule refuses a cross-tenant request whatever the model intended.</strong> The model asked for <code>find_booking(BK-1042)</code> believing it was helping; the tool refused because Ana isn&#39;t Tom. The model&#39;s intent never entered into it.</p>
+<h2>When the defence is off, the tools run as a service account</h2>
+<p>Switching identity off doesn&#39;t make the tools ask the prompt nicely. It makes them run as a built-in <code>assistant</code> account that&#39;s allowed everything, which is what an agent without identity really is. That&#39;s the honest baseline: either every call carries a real user, or every call is effectively an admin.</p>
+<h2>Run it</h2>
+<pre><code class="hljs language-bash">npm run lesson4
+npm start           <span class="hljs-comment"># sign in as Ana, ask about BK-1042, toggle Identity. Then try as Dev, then Maggie.</span>
+</code></pre><h2>Try this</h2>
+<ul>
+<li>Sign in as the receptionist (Dev) and ask for a £150 refund. Then sign in as the owner (Maggie) and ask for the same. Same request, different answer, decided in code.</li>
+<li>In the app, try to export the ledger as the receptionist. Where would you add that check? (It&#39;s <code>canExportLedger</code> in <code>src/defences/identity.ts</code>. Role checks are boring to write and that&#39;s the nicest thing about them.)</li>
+</ul>
+<aside class="cta"><strong>Found this useful?</strong> I post small, practical AI coding examples most days.
+  <a href="https://x.com/georgehanu">Follow @georgehanu on X</a></aside><nav class="pager"><a href="03-the-screen-and-the-fetch-tool.html"><small>← Lesson 3</small>What the screen and the fetch tool can give away</a><a class="next" href="05-tools-that-must-not-run-twice.html"><small>Lesson 5 →</small>Tools that must not run twice</a></nav></main>
+</div>
+<footer class="foot">
+  <p>Written by <a href="https://x.com/georgehanu">George Hanu</a>. I teach developers to build software with AI: small examples, explained clearly.</p>
+  <p><a href="https://x.com/georgehanu">Follow on X</a> · <a href="https://github.com/georgehanu/harden-your-agent">Source on GitHub</a> · MIT licensed</p>
+</footer>
+</body>
+</html>

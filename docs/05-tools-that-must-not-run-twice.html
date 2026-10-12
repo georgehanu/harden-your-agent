@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 5: Tools that must not run twice · Harden Your Agent</title>
+<meta name="description" content="Tools that must not run twice. Part of Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://georgehanu.github.io/harden-your-agent/05-tools-that-must-not-run-twice.html">
+<meta property="og:title" content="Lesson 5: Tools that must not run twice · Harden Your Agent">
+<meta property="og:description" content="Tools that must not run twice. Part of Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test.">
+<meta property="og:image" content="https://georgehanu.github.io/og/guides/harden-your-agent.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test. Coding with AI, by George Hanu.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:creator" content="@georgehanu">
+<meta name="twitter:title" content="Lesson 5: Tools that must not run twice · Harden Your Agent">
+<meta name="twitter:description" content="Tools that must not run twice. Part of Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test.">
+<meta name="twitter:image" content="https://georgehanu.github.io/og/guides/harden-your-agent.png">
+<meta name="twitter:image:alt" content="Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test. Coding with AI, by George Hanu.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128737;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span class="loop">&#128737;</span> Harden Your Agent</a>
+  <nav class="top-links">
+    <a href="https://github.com/georgehanu/harden-your-agent">GitHub</a>
+    <a class="follow" href="https://x.com/georgehanu">Follow @georgehanu</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side"><div class="side-title">Lessons</div><a href="01-where-untrusted-text-gets-in.html"><span>1</span>Where untrusted text gets in</a>
+<a href="02-keep-the-agent-on-task.html"><span>2</span>Keep the agent on task</a>
+<a href="03-the-screen-and-the-fetch-tool.html"><span>3</span>What the screen and the fetch tool can give away</a>
+<a href="04-acting-as-whom.html"><span>4</span>Acting as whom</a>
+<a href="05-tools-that-must-not-run-twice.html" aria-current="page"><span>5</span>Tools that must not run twice</a>
+<a href="06-memory-you-can-trust.html"><span>6</span>Memory you can trust</a>
+<a href="07-the-hardening-test-suite.html"><span>+</span>The hardening test suite</a></aside>
+  <main class="lesson"><div class="meta"><span>Run</span><code>npm run lesson5</code><a href="https://github.com/georgehanu/harden-your-agent/blob/main/src/defences/once.ts">View the code →</a></div><h1>Lesson 5 · Tools that must not run twice</h1>
+<p>Reading a file twice is harmless. Refunding a guest twice is a phone call from your boss. Agents retry: a tool result goes missing, a person asks the same thing again, a loop goes round once more &quot;to be sure&quot;. So the tools that change the world have to be safe to run again. This is ordinary backend discipline, and the agent makes it compulsory rather than optional.</p>
+<p>Five small guards, all in <code>src/defences/once.ts</code>, all checked before <code>issue_refund</code> or <code>change_booking</code> does anything.</p>
+<h2>1. An idempotency key</h2>
+<p>A key from <code>(ref, amount, reason)</code>, so the same refund asked twice is one refund:</p>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">export</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">refundKey</span>(<span class="hljs-params">ref, amount, reason</span>) {
+  <span class="hljs-keyword">const</span> words = reason.<span class="hljs-title function_">toLowerCase</span>().<span class="hljs-title function_">replace</span>(<span class="hljs-regexp">/[^a-z0-9£ ]+/g</span>, <span class="hljs-string">&quot; &quot;</span>).<span class="hljs-title function_">trim</span>();
+  <span class="hljs-keyword">return</span> <span class="hljs-title function_">sha256</span>(<span class="hljs-string">`<span class="hljs-subst">${ref.toUpperCase()}</span>|<span class="hljs-subst">${amount.toFixed(<span class="hljs-number">2</span>)}</span>|<span class="hljs-subst">${words}</span>`</span>).<span class="hljs-title function_">slice</span>(<span class="hljs-number">0</span>, <span class="hljs-number">16</span>);
+}
+</code></pre><pre><code class="hljs language-bash">npm run lesson5
+</code></pre><pre><code class="hljs language-text">── Once OFF ──
+tool → issue_refund(BK-1043, £15)   ← Refunded £15.00 (R-0001)
+tool → issue_refund(BK-1043, £15)   ← Refunded £15.00 (R-0002)      ledger: £30.00
+
+── Once ON ──
+tool → issue_refund(BK-1043, £15)   ← Refunded £15.00 (R-0001)
+tool → issue_refund(BK-1043, £15)   ✗ Already done. Same request, nothing new refunded.   ledger: £15.00
+</code></pre><p>The second call found the first&#39;s key and returned it. Idempotent by construction, the way a payment API wants you to work anyway.</p>
+<h2>2. Look before you act</h2>
+<p>Read the ledger and the booking <em>before</em> the side effect, not after. A near-identical refund already there, or a booking that&#39;s cancelled, stops the call. You&#39;re reconstructing the current state from the record, not trusting the model&#39;s memory of it.</p>
+<h2>3. A budget per run</h2>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> <span class="hljs-variable constant_">RUN_BUDGET</span> = { <span class="hljs-attr">refunds</span>: <span class="hljs-number">2</span>, <span class="hljs-attr">total</span>: <span class="hljs-number">150</span> };
+</code></pre><p>Whatever the model has planned, one run may make at most two refunds and move at most £150. A confused loop can be wrong, but it can&#39;t be wrong for very much. Pick limits that cover the honest cases and nothing more.</p>
+<h2>4. A circuit breaker</h2>
+<pre><code class="hljs language-text">Circuit breaker: the payment service stops answering
+  3 failed tool call(s), then the run stopped itself: circuit open.
+</code></pre><p>Three tool errors in a row and the run stops for a person. A loop that keeps hitting the same wall is a bill that keeps growing, and the wall is rarely something a fourth try fixes.</p>
+<h2>5. Plausible numbers</h2>
+<p>The number that drives an action has to make sense against the record, wherever it came from. Harbour Tours&#39; cancellations page says Sam is owed <strong>£1,900</strong> for a boat trip. A boat trip is £19; someone fat-fingered a decimal, or the page is lying.</p>
+<pre><code class="hljs language-text">── Plausibility ON ──   (signed in as the owner, so the £100 role limit isn&#x27;t what stops it)
+tool ✗ £1,900 is more than BK-1044 has left to refund: £209 paid, £0 refunded. Check where that number came from.
+</code></pre><p>The refund is checked against what the booking actually took, not against what a partner&#39;s web page claims. This is the lesson-2 idea — a number from outside is untrusted — applied to the one place it hurts most.</p>
+<h2>None of this is AI code</h2>
+<p>Idempotency keys, a state check, a budget, a breaker, a sanity check. You&#39;d write every one of these for a plain HTTP endpoint that moves money. The agent doesn&#39;t need new kinds of safety; it needs the old kinds made mandatory, because now the thing calling your endpoint improvises.</p>
+<h2>Run it</h2>
+<pre><code class="hljs language-bash">npm run lesson5
+npm start           <span class="hljs-comment"># run the &quot;refund a cot fee&quot; task with Once off, then on, and watch the ledger</span>
+</code></pre><h2>Try this</h2>
+<ul>
+<li>In the app, turn on &quot;Payment service is down&quot; (under <em>Make things go wrong</em>) and run a refund a few times with Once on. Watch the circuit breaker trip.</li>
+<li>Lower <code>RUN_BUDGET.total</code> to £10 and run the £15 cot refund. The budget refuses it. Where should the message tell the person to go next? A good limit also says what to do when you hit it.</li>
+</ul>
+<aside class="cta"><strong>Found this useful?</strong> I post small, practical AI coding examples most days.
+  <a href="https://x.com/georgehanu">Follow @georgehanu on X</a></aside><nav class="pager"><a href="04-acting-as-whom.html"><small>← Lesson 4</small>Acting as whom</a><a class="next" href="06-memory-you-can-trust.html"><small>Lesson 6 →</small>Memory you can trust</a></nav></main>
+</div>
+<footer class="foot">
+  <p>Written by <a href="https://x.com/georgehanu">George Hanu</a>. I teach developers to build software with AI: small examples, explained clearly.</p>
+  <p><a href="https://x.com/georgehanu">Follow on X</a> · <a href="https://github.com/georgehanu/harden-your-agent">Source on GitHub</a> · MIT licensed</p>
+</footer>
+</body>
+</html>

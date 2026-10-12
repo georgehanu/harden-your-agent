@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tiny-stay · Staff assistant</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128737;</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <strong>tiny-stay</strong> <span class="muted">Staff assistant</span>
+  <span id="mode" class="badge"></span>
+  <label class="signin">Sign in as
+    <select id="signin" aria-label="Sign in as"></select>
+  </label>
+</header>
+
+<main class="layout">
+  <section class="col chat-col">
+    <div class="card chat">
+      <div class="chat-head">
+        <h2>Assistant</h2>
+        <span id="who" class="muted"></span>
+      </div>
+      <div id="transcript" class="transcript" aria-live="polite">
+        <p class="empty">Pick a task below, or type your own, and watch what the agent does. Turn the defences on and off and run the same task again.</p>
+      </div>
+      <div class="compose">
+        <label for="request" class="sr-only">Your request</label>
+        <textarea id="request" rows="2" placeholder="Ask the assistant to do something…"></textarea>
+        <div class="compose-row">
+          <select id="samples" aria-label="Sample tasks"><option value="">Sample tasks…</option></select>
+          <button id="run">Run</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="col side-col">
+    <div class="card defences">
+      <div class="card-head"><h3>Defences</h3><button id="toggle-all" class="link">all off</button></div>
+      <p class="muted small">Each maps to one lesson. All off to start. Flip one and run the same task again.</p>
+      <div id="defence-list"></div>
+    </div>
+
+    <div class="card lab">
+      <h3>Make things go wrong</h3>
+      <p class="muted small">For lessons 5 and 6.</p>
+      <label class="switch"><input type="checkbox" id="lab-payments"> <span>Payment service is down</span></label>
+      <label class="switch"><input type="checkbox" id="lab-plugin"> <span>A plugin changed a tool's description</span></label>
+    </div>
+
+    <div class="card views">
+      <div class="tabs">
+        <button class="tab active" data-view="bookings">Bookings</button>
+        <button class="tab" data-view="ledger">Ledger</button>
+        <button class="tab" data-view="memory">Memory</button>
+        <button class="tab" data-view="roles">Roles</button>
+      </div>
+      <div id="view-bookings" class="view"></div>
+      <div id="view-ledger" class="view" hidden></div>
+      <div id="view-memory" class="view" hidden></div>
+      <div id="view-roles" class="view" hidden></div>
+      <button id="reset" class="ghost small reset">Reset the sample data</button>
+    </div>
+  </aside>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+<script src="app.js" type="module"></script>
+</body>
+</html>

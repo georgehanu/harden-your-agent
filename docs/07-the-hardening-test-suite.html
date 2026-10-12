@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Epilogue: The hardening test suite · Harden Your Agent</title>
+<meta name="description" content="The hardening test suite. Part of Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://georgehanu.github.io/harden-your-agent/07-the-hardening-test-suite.html">
+<meta property="og:title" content="Epilogue: The hardening test suite · Harden Your Agent">
+<meta property="og:description" content="The hardening test suite. Part of Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test.">
+<meta property="og:image" content="https://georgehanu.github.io/og/guides/harden-your-agent.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test. Coding with AI, by George Hanu.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:creator" content="@georgehanu">
+<meta name="twitter:title" content="Epilogue: The hardening test suite · Harden Your Agent">
+<meta name="twitter:description" content="The hardening test suite. Part of Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test.">
+<meta name="twitter:image" content="https://georgehanu.github.io/og/guides/harden-your-agent.png">
+<meta name="twitter:image:alt" content="Harden Your Agent: add the defences a real product needs to a small TypeScript agent, each proved by a test. Coding with AI, by George Hanu.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128737;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span class="loop">&#128737;</span> Harden Your Agent</a>
+  <nav class="top-links">
+    <a href="https://github.com/georgehanu/harden-your-agent">GitHub</a>
+    <a class="follow" href="https://x.com/georgehanu">Follow @georgehanu</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side"><div class="side-title">Lessons</div><a href="01-where-untrusted-text-gets-in.html"><span>1</span>Where untrusted text gets in</a>
+<a href="02-keep-the-agent-on-task.html"><span>2</span>Keep the agent on task</a>
+<a href="03-the-screen-and-the-fetch-tool.html"><span>3</span>What the screen and the fetch tool can give away</a>
+<a href="04-acting-as-whom.html"><span>4</span>Acting as whom</a>
+<a href="05-tools-that-must-not-run-twice.html"><span>5</span>Tools that must not run twice</a>
+<a href="06-memory-you-can-trust.html"><span>6</span>Memory you can trust</a>
+<a href="07-the-hardening-test-suite.html" aria-current="page"><span>+</span>The hardening test suite</a></aside>
+  <main class="lesson"><div class="meta"><span>Run</span><code>npm run harden-check</code><a href="https://github.com/georgehanu/harden-your-agent/blob/main/harden/check.ts">View the code →</a></div><h1>Epilogue · The hardening test suite</h1>
+<p>Six defences. Each one proved by a terminal demo where you watch it off, then on. Demos are good for learning and useless for CI: nobody reads a transcript on every pull request. So the same fixtures run as a test suite.</p>
+<pre><code class="hljs language-bash">npm run harden-check
+</code></pre><pre><code class="hljs language-text">Hardening check · 29 cases
+
+PASS  boundaries   untrusted text is wrapped with its source
+PASS  intent       a tool outside the scope is refused
+PASS  intent       normalisation strips comments, hidden elements and invisible characters
+PASS  render       the safe renderer blocks remote images, shows link hosts, drops raw HTML
+PASS  render       fetch_page re-checks after a redirect into a private address
+PASS  identity     a guest can&#x27;t see another guest&#x27;s booking
+PASS  once         the same refund twice returns the first, not a second
+PASS  once         the circuit breaker opens after three errors in a row
+PASS  memory       a refund that rests on memory is cross-checked against the booking
+PASS  memory       a changed tool definition is detected; the hash ignores key order
+…
+By defence
+  ✓ boundaries   3/3   ✓ intent 4/4   ✓ render 6/6   ✓ identity 5/5   ✓ once 6/6   ✓ memory 5/5
+
+all passed  (29/29)
+</code></pre><h2>It tests the code, not the model</h2>
+<p>This is the whole reason the suite can exist. Every case drives a <strong>code-level</strong> defence and asserts a yes/no outcome: the scope check refuses an out-of-scope tool, <code>fetch_page</code> refuses a redirect to a private address, <code>canSeeBooking</code> refuses a cross-tenant lookup, the idempotency key collapses a double refund. None of it calls the model.</p>
+<p>That&#39;s deliberate, and it&#39;s the thread running through all six lessons. You cannot unit-test &quot;the model resists a cleverly worded email&quot;, because the answer is &quot;usually&quot;, and usually isn&#39;t a test. You <em>can</em> unit-test the code that holds whatever the model does. So that&#39;s where the defences live, and that&#39;s what this suite guards.</p>
+<p>A nice property falls out: <strong>a test that proves &quot;on&quot; works should also prove &quot;off&quot; fails.</strong> The suite includes cases that run a defence with the switch off and assert the bad thing happens. If &quot;off&quot; ever stops failing, the test was checking nothing.</p>
+<pre><code class="hljs language-ts"><span class="hljs-title function_">check</span>(<span class="hljs-string">&quot;identity&quot;</span>, <span class="hljs-string">&quot;the same lookup with identity off is not refused&quot;</span>, <span class="hljs-title function_">async</span> () =&gt; {
+  <span class="hljs-keyword">const</span> leak = <span class="hljs-keyword">await</span> <span class="hljs-title function_">runTool</span>(findBooking, { <span class="hljs-attr">ref</span>: <span class="hljs-string">&quot;BK-1042&quot;</span> }, <span class="hljs-title function_">ctxFor</span>(<span class="hljs-string">&quot;guest&quot;</span>, store, <span class="hljs-title function_">allOff</span>()));
+  <span class="hljs-keyword">return</span> <span class="hljs-title function_">expect</span>(leak.<span class="hljs-property">ok</span>, <span class="hljs-string">&quot;with identity off the tool should run — else this test proves nothing&quot;</span>);
+});
+</code></pre><h2>Drop it into CI</h2>
+<p>It exits non-zero on any failure, so it&#39;s one line in a workflow:</p>
+<pre><code class="hljs language-yaml"><span class="hljs-bullet">-</span> <span class="hljs-attr">run:</span> <span class="hljs-string">npm</span> <span class="hljs-string">run</span> <span class="hljs-string">typecheck</span>
+<span class="hljs-bullet">-</span> <span class="hljs-attr">run:</span> <span class="hljs-string">npm</span> <span class="hljs-string">run</span> <span class="hljs-string">harden-check</span>
+</code></pre><p>Add a case every time a real request surprises you. A production incident becomes case thirty, and it never comes back quietly.</p>
+<h2>The one-page checklist</h2>
+<p>Before an agent that can act on the world goes near a customer:</p>
+<ul>
+<li><input disabled="" type="checkbox"> <strong>Boundaries.</strong> Every tool result from outside is wrapped as labelled data with its source, and the system prompt says so. (You know which tools those are. You wrote the list in lesson 1.)</li>
+<li><input disabled="" type="checkbox"> <strong>Intent.</strong> The request is turned into a scope before the agent reads anything, and every tool call is checked against it. Untrusted text is normalised to what a person would see, and removals are logged.</li>
+<li><input disabled="" type="checkbox"> <strong>Render.</strong> The UI renders no remote images, shows every link&#39;s real host, auto-navigates nowhere, and allows no raw HTML.</li>
+<li><input disabled="" type="checkbox"> <strong>Fetch.</strong> Server-side fetches use an allowlist, refuse loopback/private/link-local addresses, re-check after redirects, and cap size and time.</li>
+<li><input disabled="" type="checkbox"> <strong>Identity.</strong> Tools act as the user from a signed session, never from the chat. Role rules are in code, and cross-tenant access is refused inside the tool.</li>
+<li><input disabled="" type="checkbox"> <strong>Idempotency.</strong> Actions that change the world are safe to retry: an idempotency key, a state check before the side effect, a budget per run, a circuit breaker, and a plausibility check on numbers from outside.</li>
+<li><input disabled="" type="checkbox"> <strong>Memory.</strong> Only person-authored notes become durable; the rest wait for confirmation. Every note has a source and an expiry. Recall returns data. Memory alone can&#39;t move money. Tool definitions are pinned at startup.</li>
+<li><input disabled="" type="checkbox"> <strong>A test for each.</strong> A corpus runs the code-level defences in CI, and the &quot;off&quot; cases fail.</li>
+</ul>
+<h2>The one idea, if you keep one</h2>
+<p>A prompt is advice to the model. A boundary is code the model runs inside. Lesson 1&#39;s label helped and couldn&#39;t be trusted; everything after it was code, and could be. When you build your own agent, write the advice, by all means. Then, for everything that reads untrusted text or changes the world, write the code too, and a test that fails without it.</p>
+<p>That&#39;s the series. If it helped, tell me what you hardened: <a href="https://x.com/georgehanu">@georgehanu</a>.</p>
+<h2>Where to go next</h2>
+<ul>
+<li>Anthropic, <a href="https://www.anthropic.com/engineering/building-effective-agents"><em>Building effective agents</em></a>, for the patterns underneath the loop.</li>
+<li>The OWASP <a href="https://owasp.org/www-project-top-10-for-large-language-model-applications/">Top 10 for LLM Applications</a>, which names most of what these lessons defend against.</li>
+<li><a href="https://georgehanu.github.io/the-agent-loop/">The Agent Loop</a>, the companion that builds the agent this series hardens.</li>
+</ul>
+<aside class="cta"><strong>Found this useful?</strong> I post small, practical AI coding examples most days.
+  <a href="https://x.com/georgehanu">Follow @georgehanu on X</a></aside><nav class="pager"><a href="06-memory-you-can-trust.html"><small>← Lesson 6</small>Memory you can trust</a></nav></main>
+</div>
+<footer class="foot">
+  <p>Written by <a href="https://x.com/georgehanu">George Hanu</a>. I teach developers to build software with AI: small examples, explained clearly.</p>
+  <p><a href="https://x.com/georgehanu">Follow on X</a> · <a href="https://github.com/georgehanu/harden-your-agent">Source on GitHub</a> · MIT licensed</p>
+</footer>
+</body>
+</html>
